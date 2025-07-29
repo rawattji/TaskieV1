@@ -302,11 +302,19 @@ export class WorkspaceService {
       // Get recent activity (last 7 days)
       const recentActivity = await this.getRecentActivityCount(workspaceId);
 
+      // Count departments (unique team names or tag-based grouping)
+      const departmentSet = new Set<string>();
+      for (const team of teams) {
+        if (team.departmentId) {
+          departmentSet.add(team.departmentId);
+        }
+      }
+
       return {
         totalMembers: members.length,
         activeMembers: members.filter(m => m.isActive).length,
         totalTeams: teams.length,
-        totalDepartments: 0, // TODO: Implement department counting
+        totalDepartments: departmentSet.size,
         recentActivity
       };
     } catch (error) {
@@ -316,7 +324,16 @@ export class WorkspaceService {
   }
 
   private async getRecentActivityCount(workspaceId: string): Promise<number> {
-    // TODO: Implement activity tracking
-    return 0;
+    try {
+      const query = `
+        SELECT COUNT(*) as activity_count FROM teams
+        WHERE workspace_id = $1 AND updated_at >= NOW() - INTERVAL '7 days'
+      `;
+      const result = await this.teamRepository['pool'].query(query, [workspaceId]);
+      return parseInt(result.rows[0]?.activity_count || '0', 10);
+    } catch (error) {
+      this.logger.error(`Failed to fetch recent activity count for workspace ${workspaceId}`, error);
+      return 0;
+    }
   }
 }

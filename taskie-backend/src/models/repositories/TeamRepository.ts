@@ -734,4 +734,13 @@ export class TeamRepository extends BaseRepository<ITeam> {
       ));
     });
   }
+  async countRecentActivity(workspaceId: string, days: number = 7): Promise<number> {
+    const query = `
+        SELECT COUNT(*) as count
+        FROM teams
+        WHERE workspace_id = $1 AND updated_at >= NOW() - INTERVAL '${days} days'
+    `;
+    const result = await this.pool.query(query, [workspaceId]);
+    return parseInt(result.rows[0]?.count || '0', 10);
+  }
 }
