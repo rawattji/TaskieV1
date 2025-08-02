@@ -2,7 +2,7 @@ import { Pool, PoolClient } from 'pg';
 import { BaseRepository } from './BaseRepository';
 import { Team } from '../entities/Team';
 import { v4 as uuidv4 } from 'uuid';
-import { IDepartment, ITeam, IUser } from '../../types/workspace.types';
+import { IDepartment, ITeam, IUser, WorkspaceRole } from '../../types/workspace.types';
 
 export interface TeamWithMembers extends ITeam {
   memberCount: number;
@@ -12,11 +12,11 @@ export interface TeamWithMembers extends ITeam {
 }
 
 export interface TeamMember {
-  userId: string;
+  user_id: string;
   user: IUser;
-  joinedAt: Date;
-  role: string;
-  isActive: boolean;
+  joined_at: Date;
+  role: WorkspaceRole;
+  is_active: boolean;
 }
 
 export class TeamRepository extends BaseRepository<ITeam> {
@@ -57,7 +57,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
   /**
    * Create new team
    */
-  async create(teamData: Omit<ITeam, 'id' | 'createdAt' | 'updatedAt'>): Promise<ITeam> {
+  async create(teamData: Omit<ITeam, 'id' | 'created_at' | 'updated_at'>): Promise<ITeam> {
     const id = uuidv4();
     const now = new Date();
     
@@ -69,12 +69,12 @@ export class TeamRepository extends BaseRepository<ITeam> {
     
     const values = [
       id,
-      teamData.workspaceId,
-      teamData.departmentId,
+      teamData.workspace_id,
+      teamData.department_id,
       teamData.name,
       teamData.description,
-      teamData.leadId,
-      teamData.isActive,
+      teamData.lead_id,
+      teamData.is_active,
       now,
       now
     ];
@@ -104,12 +104,12 @@ export class TeamRepository extends BaseRepository<ITeam> {
     let paramIndex = 1;
 
     Object.entries(updates).forEach(([key, value]) => {
-      if (value !== undefined && key !== 'id' && key !== 'createdAt') {
-        const dbKey = key === 'workspaceId' ? 'workspace_id' : 
-                     key === 'departmentId' ? 'department_id' :
-                     key === 'leadId' ? 'lead_id' :
-                     key === 'isActive' ? 'is_active' : 
-                     key === 'updatedAt' ? 'updated_at' : key;
+      if (value !== undefined && key !== 'id' && key !== 'created_at') {
+        const dbKey = key === 'workspace_id' ? 'workspace_id' : 
+                     key === 'department_id' ? 'department_id' :
+                     key === 'lead_id' ? 'lead_id' :
+                     key === 'is_active' ? 'is_active' : 
+                     key === 'updated_at' ? 'updated_at' : key;
         
         setClause.push(`${dbKey} = $${paramIndex}`);
         values.push(value);
@@ -169,7 +169,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
   /**
    * Find teams by workspace
    */
-  async findByWorkspace(workspaceId: string): Promise<ITeam[]> {
+  async findByWorkspace(workspace_id: string): Promise<ITeam[]> {
     const query = `
       SELECT id, workspace_id, department_id, name, description, lead_id, is_active, created_at, updated_at
       FROM teams
@@ -177,7 +177,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
       ORDER BY name ASC
     `;
     
-    const result = await this.pool.query(query, [workspaceId]);
+    const result = await this.pool.query(query, [workspace_id]);
     
     return result.rows.map(row => new Team(
       row.id,
@@ -195,7 +195,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
   /**
    * Find teams by department
    */
-  async findByDepartment(departmentId: string): Promise<ITeam[]> {
+  async findByDepartment(department_id: string): Promise<ITeam[]> {
     const query = `
       SELECT id, workspace_id, department_id, name, description, lead_id, is_active, created_at, updated_at
       FROM teams
@@ -203,7 +203,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
       ORDER BY name ASC
     `;
     
-    const result = await this.pool.query(query, [departmentId]);
+    const result = await this.pool.query(query, [department_id]);
     
     return result.rows.map(row => new Team(
       row.id,
@@ -221,7 +221,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
   /**
    * Find team with detailed information including members
    */
-  async findTeamWithDetails(teamId: string): Promise<TeamWithMembers | null> {
+  async findTeamWithDetails(team_id: string): Promise<TeamWithMembers | null> {
     const teamQuery = `
       SELECT t.id, t.workspace_id, t.department_id, t.name, t.description, t.lead_id, t.is_active, 
              t.created_at, t.updated_at,
@@ -233,7 +233,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
       WHERE t.id = $1 AND t.is_active = true
     `;
 
-    const teamResult = await this.pool.query(teamQuery, [teamId]);
+    const teamResult = await this.pool.query(teamQuery, [team_id]);
     
     if (teamResult.rows.length === 0) {
       return null;
@@ -244,25 +244,25 @@ export class TeamRepository extends BaseRepository<ITeam> {
     // Get team members
     const membersQuery = `
       SELECT u.id, u.email, u.username, u.first_name, u.last_name, u.avatar, u.is_active,
-             u.created_at, u.updated_at, uw.joined_at, uw.role
+             u.created_at, u.updated_at, uw.joined_at, uw.role, 
       FROM users u
       INNER JOIN user_workspaces uw ON u.id = uw.user_id
       WHERE uw.team_id = $1 AND uw.is_active = true AND u.is_active = true
       ORDER BY uw.joined_at ASC
     `;
 
-    const membersResult = await this.pool.query(membersQuery, [teamId]);
+    const membersResult = await this.pool.query(membersQuery, [team_id]);
     
     const members = membersResult.rows.map(row => ({
       id: row.id,
       email: row.email,
       username: row.username,
-      firstName: row.first_name,
-      lastName: row.last_name,
+      first_name: row.first_name,
+      last_name: row.last_name,
       avatar: row.avatar,
-      isActive: row.is_active,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
+      is_active: row.is_active,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
     }));
 
     // Get team lead if exists
@@ -282,12 +282,12 @@ export class TeamRepository extends BaseRepository<ITeam> {
           id: leadRow.id,
           email: leadRow.email,
           username: leadRow.username,
-          firstName: leadRow.first_name,
-          lastName: leadRow.last_name,
+          first_name: leadRow.first_name,
+          last_name: leadRow.last_name,
           avatar: leadRow.avatar,
-          isActive: leadRow.is_active,
-          createdAt: leadRow.created_at,
-          updatedAt: leadRow.updated_at
+          is_active: leadRow.is_active,
+          created_at: leadRow.created_at,
+          updated_at: leadRow.updated_at,
         };
       }
     }
@@ -306,14 +306,14 @@ export class TeamRepository extends BaseRepository<ITeam> {
 
     const department = {
       id: teamRow.dept_id,
-      workspaceId: teamRow.workspace_id,
+      workspace_id: teamRow.workspace_id,
       name: teamRow.dept_name,
       description: teamRow.dept_description,
-      parentDepartmentId: teamRow.parent_department_id,
-      managerId: teamRow.manager_id,
-      isActive: teamRow.dept_active,
-      createdAt: teamRow.dept_created_at,
-      updatedAt: teamRow.dept_updated_at
+      parent_department_id: teamRow.parent_department_id,
+      manager_id: teamRow.manager_id,
+      is_active: teamRow.dept_active,
+      created_at: teamRow.dept_created_at,
+      updated_at: teamRow.dept_updated_at,
     };
 
     return {
@@ -321,14 +321,14 @@ export class TeamRepository extends BaseRepository<ITeam> {
       memberCount: members.length,
       members,
       lead,
-      department
+      department,
     };
   }
 
   /**
    * Find teams by user (teams where user is a member)
    */
-  async findTeamsByUser(userId: string): Promise<ITeam[]> {
+  async findTeamsByUser(user_id: string): Promise<ITeam[]> {
     const query = `
       SELECT DISTINCT t.id, t.workspace_id, t.department_id, t.name, t.description, 
              t.lead_id, t.is_active, t.created_at, t.updated_at
@@ -338,7 +338,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
       ORDER BY t.name ASC
     `;
     
-    const result = await this.pool.query(query, [userId]);
+    const result = await this.pool.query(query, [user_id]);
     
     return result.rows.map(row => new Team(
       row.id,
@@ -356,7 +356,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
   /**
    * Find teams led by user
    */
-  async findTeamsLedByUser(userId: string): Promise<ITeam[]> {
+  async findTeamsLedByUser(user_id: string): Promise<ITeam[]> {
     const query = `
       SELECT id, workspace_id, department_id, name, description, lead_id, is_active, created_at, updated_at
       FROM teams
@@ -364,7 +364,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
       ORDER BY name ASC
     `;
     
-    const result = await this.pool.query(query, [userId]);
+    const result = await this.pool.query(query, [user_id]);
     
     return result.rows.map(row => new Team(
       row.id,
@@ -382,7 +382,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
   /**
    * Get team members with their roles
    */
-  async getTeamMembers(teamId: string): Promise<TeamMember[]> {
+  async getTeamMembers(team_id: string): Promise<TeamMember[]> {
     const query = `
       SELECT u.id, u.email, u.username, u.first_name, u.last_name, u.avatar, u.is_active,
              u.created_at, u.updated_at, uw.joined_at, uw.role, uw.is_active as member_active
@@ -392,31 +392,34 @@ export class TeamRepository extends BaseRepository<ITeam> {
       ORDER BY uw.joined_at ASC
     `;
 
-    const result = await this.pool.query(query, [teamId]);
+    const result = await this.pool.query(query, [team_id]);
     
     return result.rows.map(row => ({
-      userId: row.id,
+      user_id: row.id,
       user: {
         id: row.id,
         email: row.email,
         username: row.username,
-        firstName: row.first_name,
-        lastName: row.last_name,
+        first_name: row.first_name,
+        last_name: row.last_name,
         avatar: row.avatar,
-        isActive: row.is_active,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at
+        is_active: row.is_active,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        password_hash: row.password_hash,
+        verified_at: row.verified_at,
+        is_verified: row.is_verified
       },
-      joinedAt: row.joined_at,
-      role: row.role,
-      isActive: row.member_active
+      joined_at: row.joined_at,
+      role: Object.values(WorkspaceRole).includes(row.role) ? row.role as WorkspaceRole : WorkspaceRole.MEMBER,
+      is_active: row.member_active
     }));
   }
 
   /**
    * Check if user is member of team
    */
-  async isUserMemberOfTeam(userId: string, teamId: string): Promise<boolean> {
+  async isUserMemberOfTeam(userId: string, team_id: string): Promise<boolean> {
     const query = `
       SELECT 1
       FROM user_workspaces uw
@@ -424,28 +427,28 @@ export class TeamRepository extends BaseRepository<ITeam> {
       WHERE uw.user_id = $1 AND uw.team_id = $2 AND uw.is_active = true AND t.is_active = true
     `;
 
-    const result = await this.pool.query(query, [userId, teamId]);
+    const result = await this.pool.query(query, [userId, team_id]);
     return result.rows.length > 0;
   }
 
   /**
    * Check if user is lead of team
    */
-  async isUserTeamLead(userId: string, teamId: string): Promise<boolean> {
+  async isUserTeamLead(userId: string, team_id: string): Promise<boolean> {
     const query = `
       SELECT 1
       FROM teams
       WHERE id = $1 AND lead_id = $2 AND is_active = true
     `;
 
-    const result = await this.pool.query(query, [teamId, userId]);
+    const result = await this.pool.query(query, [team_id, userId]);
     return result.rows.length > 0;
   }
 
   /**
    * Assign team lead
    */
-  async assignTeamLead(teamId: string, userId: string): Promise<ITeam | null> {
+  async assignTeamLead(team_id: string, userId: string): Promise<ITeam | null> {
     return this.withTransaction(async (client: PoolClient) => {
       // Verify user is member of the team
       const memberCheckQuery = `
@@ -454,7 +457,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
         WHERE uw.user_id = $1 AND uw.team_id = $2 AND uw.is_active = true
       `;
       
-      const memberResult = await client.query(memberCheckQuery, [userId, teamId]);
+      const memberResult = await client.query(memberCheckQuery, [userId, team_id]);
       
       if (memberResult.rows.length === 0) {
         throw new Error('User is not a member of the team');
@@ -468,7 +471,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
         RETURNING *
       `;
 
-      const result = await client.query(updateQuery, [userId, new Date(), teamId]);
+      const result = await client.query(updateQuery, [userId, new Date(), team_id]);
       
       if (result.rows.length === 0) {
         return null;
@@ -492,7 +495,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
   /**
    * Remove team lead
    */
-  async removeTeamLead(teamId: string): Promise<ITeam | null> {
+  async removeTeamLead(team_id: string): Promise<ITeam | null> {
     const query = `
       UPDATE teams 
       SET lead_id = NULL, updated_at = $1
@@ -500,7 +503,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
       RETURNING *
     `;
 
-    const result = await this.pool.query(query, [new Date(), teamId]);
+    const result = await this.pool.query(query, [new Date(), team_id]);
     
     if (result.rows.length === 0) {
       return null;
@@ -523,7 +526,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
   /**
    * Get team statistics
    */
-  async getTeamStats(teamId: string): Promise<{
+  async getTeamStats(team_id: string): Promise<{
     memberCount: number;
     activeTaskCount: number;
     completedTaskCount: number;
@@ -543,7 +546,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
       GROUP BY team.id
     `;
 
-    const result = await this.pool.query(statsQuery, [teamId]);
+    const result = await this.pool.query(statsQuery, [team_id]);
     
     if (result.rows.length === 0) {
       return {
@@ -566,7 +569,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
   /**
    * Search teams by name within workspace
    */
-  async searchTeamsByName(workspaceId: string, searchTerm: string, limit: number = 20): Promise<ITeam[]> {
+  async searchTeamsByName(workspace_id: string, searchTerm: string, limit: number = 20): Promise<ITeam[]> {
     const query = `
       SELECT id, workspace_id, department_id, name, description, lead_id, is_active, created_at, updated_at
       FROM teams
@@ -581,7 +584,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
     const searchPattern = `%${searchTerm}%`;
     const exactPattern = `${searchTerm}%`;
     
-    const result = await this.pool.query(query, [workspaceId, searchPattern, exactPattern, limit]);
+    const result = await this.pool.query(query, [workspace_id, searchPattern, exactPattern, limit]);
     
     return result.rows.map(row => new Team(
       row.id,
@@ -600,10 +603,10 @@ export class TeamRepository extends BaseRepository<ITeam> {
    * Get teams with pagination
    */
   async getTeamsWithPagination(
-    workspaceId: string, 
+    workspace_id: string, 
     page: number = 1, 
     limit: number = 20,
-    departmentId?: string
+    department_id?: string
   ): Promise<{
     teams: ITeam[];
     total: number;
@@ -614,12 +617,12 @@ export class TeamRepository extends BaseRepository<ITeam> {
     const offset = (page - 1) * limit;
     
     let whereClause = 'WHERE workspace_id = $1 AND is_active = true';
-    let params: any[] = [workspaceId];
+    let params: any[] = [workspace_id];
     let paramIndex = 2;
 
-    if (departmentId) {
+    if (department_id) {
       whereClause += ` AND department_id = ${paramIndex}`;
-      params.push(departmentId);
+      params.push(department_id);
       paramIndex++;
     }
 
@@ -664,8 +667,8 @@ export class TeamRepository extends BaseRepository<ITeam> {
   /**
    * Bulk update teams
    */
-  async bulkUpdateTeams(teamIds: string[], updates: Partial<ITeam>): Promise<ITeam[]> {
-    if (teamIds.length === 0) return [];
+  async bulkUpdateTeams(team_ids: string[], updates: Partial<ITeam>): Promise<ITeam[]> {
+    if (team_ids.length === 0) return [];
 
     return this.withTransaction(async (client: PoolClient) => {
       const setClause = [];
@@ -673,12 +676,12 @@ export class TeamRepository extends BaseRepository<ITeam> {
       let paramIndex = 1;
 
       Object.entries(updates).forEach(([key, value]) => {
-        if (value !== undefined && key !== 'id' && key !== 'createdAt') {
-          const dbKey = key === 'workspaceId' ? 'workspace_id' : 
-                       key === 'departmentId' ? 'department_id' :
-                       key === 'leadId' ? 'lead_id' :
-                       key === 'isActive' ? 'is_active' : 
-                       key === 'updatedAt' ? 'updated_at' : key;
+        if (value !== undefined && key !== 'id' && key !== 'created_at') {
+          const dbKey = key === 'workspace_id' ? 'workspace_id' : 
+                       key === 'department_id' ? 'department_id' :
+                       key === 'lead_id' ? 'lead_id' :
+                       key === 'is_active' ? 'is_active' : 
+                       key === 'update_at' ? 'updated_at' : key;
           
           setClause.push(`${dbKey} = ${paramIndex}`);
           values.push(value);
@@ -693,7 +696,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
           FROM teams
           WHERE id = ANY($1) AND is_active = true
         `;
-        const result = await client.query(selectQuery, [teamIds]);
+        const result = await client.query(selectQuery, [team_ids]);
         
         return result.rows.map(row => new Team(
           row.id,
@@ -710,7 +713,7 @@ export class TeamRepository extends BaseRepository<ITeam> {
 
       setClause.push(`updated_at = ${paramIndex}`);
       values.push(new Date());
-      values.push(teamIds);
+      values.push(team_ids);
 
       const query = `
         UPDATE teams 
@@ -734,13 +737,13 @@ export class TeamRepository extends BaseRepository<ITeam> {
       ));
     });
   }
-  async countRecentActivity(workspaceId: string, days: number = 7): Promise<number> {
+  async countRecentActivity(workspace_id: string, days: number = 7): Promise<number> {
     const query = `
         SELECT COUNT(*) as count
         FROM teams
         WHERE workspace_id = $1 AND updated_at >= NOW() - INTERVAL '${days} days'
     `;
-    const result = await this.pool.query(query, [workspaceId]);
+    const result = await this.pool.query(query, [workspace_id]);
     return parseInt(result.rows[0]?.count || '0', 10);
   }
 }

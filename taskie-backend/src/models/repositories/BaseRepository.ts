@@ -42,7 +42,7 @@ export abstract class BaseRepository<T> {
   }
 
   abstract findById(id: string): Promise<T | null>;
-  abstract create(entity: Omit<T, 'id' | 'createdAt' | 'updatedAt'>): Promise<T>;
+  abstract create(entity: Omit<T, 'id' | 'created_at' | 'updated_at'>): Promise<T>;
   abstract update(id: string, updates: Partial<T>): Promise<T | null>;
   abstract delete(id: string): Promise<boolean>;
 }
