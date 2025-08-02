@@ -77,15 +77,15 @@ export class WorkspaceService {
         domain: workspaceData.domain,
         description: workspaceData.description,
         logo: workspaceData.logo,
-        isActive: true,
+        is_active: true,
         settings: {
-          allowExternalInvites: false,
-          defaultPermissions: 'READ' as any,
+          allow_external_invites: false,
+          default_permissions: 'READ' as any,
           timeZone: 'UTC',
-          workingHours: {
+          working_hours: {
             start: '09:00',
             end: '17:00',
-            workingDays: [1, 2, 3, 4, 5]
+            working_days: [1, 2, 3, 4, 5]
           },
           ...workspaceData.settings
         }
@@ -94,7 +94,7 @@ export class WorkspaceService {
       // Assign owner to workspace
       await this.userWorkspaceService.addUserToWorkspace({
         userId: workspaceData.ownerId,
-        workspaceId: workspace.id,
+        workspace_id: workspace.id,
         role: 'OWNER' as any,
         permissions: 'FULL' as any
       });
@@ -114,22 +114,22 @@ export class WorkspaceService {
   /**
    * Get workspace by ID with user validation
    */
-  async getWorkspaceById(workspaceId: string, userId: string): Promise<IWorkspace> {
+  async getWorkspaceById(workspace_id: string, userId: string): Promise<IWorkspace> {
     try {
-      const workspace = await this.workspaceRepository.findById(workspaceId);
+      const workspace = await this.workspaceRepository.findById(workspace_id);
       if (!workspace) {
         throw new WorkspaceError('Workspace not found', ErrorCodes.WORKSPACE_NOT_FOUND);
       }
 
       // Validate user has access to workspace
-      const userWorkspace = await this.userWorkspaceService.getUserWorkspace(userId, workspaceId);
+      const userWorkspace = await this.userWorkspaceService.getUserWorkspace(userId, workspace_id);
       if (!userWorkspace) {
         throw new WorkspaceError('Access denied', ErrorCodes.ACCESS_DENIED);
       }
 
       return workspace;
     } catch (error) {
-      this.logger.error(`Error getting workspace ${workspaceId}:`, error);
+      this.logger.error(`Error getting workspace ${workspace_id}:`, error);
       throw error;
     }
   }
@@ -161,37 +161,35 @@ export class WorkspaceService {
    * Update workspace with proper permission validation
    */
 
-  async updateWorkspace(workspaceId: string, updates: Partial<IWorkspace>): Promise<IWorkspace> {
-  const workspace = await this.workspaceRepository.findById(workspaceId);
+  async updateWorkspace(workspace_id: string, updates: Partial<IWorkspace>): Promise<IWorkspace> {
+    const workspace = await this.workspaceRepository.findById(workspace_id);
 
-  if (!workspace) {
-    throw new NotFoundException('Workspace not found');
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+
+    const sanitizedUpdates: Partial<IWorkspace> = {
+      ...updates,
+      settings: updates.settings !== undefined ? {
+        allow_external_invites: updates.settings.allow_external_invites ?? false,
+        default_permissions: updates.settings.default_permissions ?? 'READ',
+        timeZone: updates.settings.timeZone ?? 'UTC',
+        working_hours: updates.settings.working_hours ?? {
+          start: '09:00',
+          end: '17:00',
+          working_days: [1, 2, 3, 4, 5]
+        }
+      } : undefined
+    } as IWorkspace;
+
+    const updatedWorkspace = await this.workspaceRepository.update(workspace_id, sanitizedUpdates);
+
+    if (!updatedWorkspace) {
+      throw new InternalServerErrorException('Failed to update workspace');
+    }
+
+    return updatedWorkspace;
   }
-
-  // Sanitize the settings object
-  const sanitizedUpdates: Partial<IWorkspace> = {
-    ...updates,
-    settings: updates.settings ? {
-      allowExternalInvites: updates.settings.allowExternalInvites ?? false,
-      defaultPermissions: updates.settings.defaultPermissions ?? 'READ',
-      timeZone: updates.settings.timeZone ?? 'UTC',
-      workingHours: updates.settings.workingHours ?? {
-        start: '09:00',
-        end: '17:00',
-        workingDays: [1, 2, 3, 4, 5] // Monday to Friday
-      }
-    } : undefined
-  };
-
-  const updatedWorkspace = await this.workspaceRepository.update(workspaceId, sanitizedUpdates);
-
-  if (!updatedWorkspace) {
-    throw new InternalServerErrorException('Failed to update workspace');
-  }
-
-  return updatedWorkspace;
-}
-
 
   /**
    * Get user's workspaces
@@ -209,21 +207,21 @@ export class WorkspaceService {
   /**
    * Get workspace with detailed information
    */
-  async getWorkspaceDetails(workspaceId: string, userId: string): Promise<WorkspaceWithMembers> {
+  async getWorkspaceDetails(workspace_id: string, userId: string): Promise<WorkspaceWithMembers> {
     try {
-      const workspace = await this.getWorkspaceById(workspaceId, userId);
+      const workspace = await this.getWorkspaceById(workspace_id, userId);
       
       // Get member count
-      const members = await this.userRepository.findWorkspaceUsers(workspaceId);
+      const members = await this.userRepository.findWorkspaceUsers(workspace_id);
       const memberCount = members.length;
 
       // Get team count
-      const teams = await this.teamRepository.findByWorkspace(workspaceId);
+      const teams = await this.teamRepository.findByWorkspace(workspace_id);
       const teamCount = teams.length;
 
       // Get owner information
-      const ownerWorkspace = await this.userWorkspaceService.getWorkspaceOwner(workspaceId);
-      const owner = await this.userRepository.findById(ownerWorkspace.userId);
+      const ownerWorkspace = await this.userWorkspaceService.getWorkspaceOwner(workspace_id);
+      const owner = await this.userRepository.findById(ownerWorkspace.user_id);
 
       if (!owner) {
         throw new WorkspaceError('Workspace owner not found', ErrorCodes.USER_NOT_FOUND);
@@ -236,7 +234,7 @@ export class WorkspaceService {
         owner
       };
     } catch (error) {
-      this.logger.error(`Error getting workspace details ${workspaceId}:`, error);
+      this.logger.error(`Error getting workspace details ${workspace_id}:`, error);
       throw error;
     }
   }
@@ -244,27 +242,27 @@ export class WorkspaceService {
   /**
    * Delete workspace (soft delete)
    */
-  async deleteWorkspace(workspaceId: string, userId: string): Promise<boolean> {
+  async deleteWorkspace(workspace_id: string, userId: string): Promise<boolean> {
     try {
       // Validate user is owner
-      const userWorkspace = await this.userWorkspaceService.getUserWorkspace(userId, workspaceId);
+      const userWorkspace = await this.userWorkspaceService.getUserWorkspace(userId, workspace_id);
       if (!userWorkspace || userWorkspace.role !== 'OWNER') {
         throw new WorkspaceError('Only workspace owner can delete workspace', ErrorCodes.INSUFFICIENT_PERMISSIONS);
       }
 
-      const success = await this.workspaceRepository.delete(workspaceId);
+      const success = await this.workspaceRepository.delete(workspace_id);
       
       if (success) {
-        this.logger.info(`Workspace deleted: ${workspaceId} by user ${userId}`);
+        this.logger.info(`Workspace deleted: ${workspace_id} by user ${userId}`);
         
         // Notify all workspace members
-        const members = await this.userRepository.findWorkspaceUsers(workspaceId);
-        await this.notificationService.sendWorkspaceDeletedNotification(workspaceId, members);
+        const members = await this.userRepository.findWorkspaceUsers(workspace_id);
+        await this.notificationService.sendWorkspaceDeletedNotification(workspace_id, members);
       }
 
       return success;
     } catch (error) {
-      this.logger.error(`Error deleting workspace ${workspaceId}:`, error);
+      this.logger.error(`Error deleting workspace ${workspace_id}:`, error);
       throw error;
     }
   }
@@ -272,10 +270,10 @@ export class WorkspaceService {
   /**
    * Validate user access to workspace
    */
-  async validateWorkspaceAccess(userId: string, workspaceId: string): Promise<boolean> {
+  async validateWorkspaceAccess(userId: string, workspace_id: string): Promise<boolean> {
     try {
-      const userWorkspace = await this.userWorkspaceService.getUserWorkspace(userId, workspaceId);
-      return userWorkspace !== null && userWorkspace.isActive;
+      const userWorkspace = await this.userWorkspaceService.getUserWorkspace(userId, workspace_id);
+      return userWorkspace !== null && userWorkspace.is_active;
     } catch (error) {
       this.logger.error(`Error validating workspace access:`, error);
       return false;
@@ -285,7 +283,7 @@ export class WorkspaceService {
   /**
    * Get workspace statistics
    */
-  async getWorkspaceStats(workspaceId: string, userId: string): Promise<{
+  async getWorkspaceStats(workspace_id: string, userId: string): Promise<{
     totalMembers: number;
     activeMembers: number;
     totalTeams: number;
@@ -294,45 +292,45 @@ export class WorkspaceService {
   }> {
     try {
       // Validate access
-      await this.getWorkspaceById(workspaceId, userId);
+      await this.getWorkspaceById(workspace_id, userId);
 
-      const members = await this.userRepository.findWorkspaceUsers(workspaceId);
-      const teams = await this.teamRepository.findByWorkspace(workspaceId);
+      const members = await this.userRepository.findWorkspaceUsers(workspace_id);
+      const teams = await this.teamRepository.findByWorkspace(workspace_id);
 
       // Get recent activity (last 7 days)
-      const recentActivity = await this.getRecentActivityCount(workspaceId);
+      const recentActivity = await this.getRecentActivityCount(workspace_id);
 
       // Count departments (unique team names or tag-based grouping)
       const departmentSet = new Set<string>();
       for (const team of teams) {
-        if (team.departmentId) {
-          departmentSet.add(team.departmentId);
+        if (team.department_id) {
+          departmentSet.add(team.department_id);
         }
       }
 
       return {
         totalMembers: members.length,
-        activeMembers: members.filter(m => m.isActive).length,
+        activeMembers: members.filter(m => m.is_active).length,
         totalTeams: teams.length,
         totalDepartments: departmentSet.size,
         recentActivity
       };
     } catch (error) {
-      this.logger.error(`Error getting workspace stats ${workspaceId}:`, error);
+      this.logger.error(`Error getting workspace stats ${workspace_id}:`, error);
       throw error;
     }
   }
 
-  private async getRecentActivityCount(workspaceId: string): Promise<number> {
+  private async getRecentActivityCount(workspace_id: string): Promise<number> {
     try {
       const query = `
         SELECT COUNT(*) as activity_count FROM teams
         WHERE workspace_id = $1 AND updated_at >= NOW() - INTERVAL '7 days'
       `;
-      const result = await this.teamRepository['pool'].query(query, [workspaceId]);
+      const result = await this.teamRepository['pool'].query(query, [workspace_id]);
       return parseInt(result.rows[0]?.activity_count || '0', 10);
     } catch (error) {
-      this.logger.error(`Failed to fetch recent activity count for workspace ${workspaceId}`, error);
+      this.logger.error(`Failed to fetch recent activity count for workspace ${workspace_id}`, error);
       return 0;
     }
   }

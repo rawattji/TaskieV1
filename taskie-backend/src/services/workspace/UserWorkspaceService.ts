@@ -7,16 +7,16 @@ import { IUserWorkspace, PermissionLevel, WorkspaceRole } from '../../types/work
 
 export interface AddUserToWorkspaceDto {
   userId: string;
-  workspaceId: string;
+  workspace_id: string;
   role: WorkspaceRole;
   permissions: PermissionLevel;
-  teamId?: string;
+  team_id?: string;
 }
 
 export interface UpdateUserWorkspaceDto {
   role?: WorkspaceRole;
   permissions?: PermissionLevel;
-  teamId?: string;
+  team_id?: string;
 }
 
 export class UserWorkspaceService {
@@ -34,7 +34,7 @@ export class UserWorkspaceService {
   async addUserToWorkspace(data: AddUserToWorkspaceDto): Promise<IUserWorkspace> {
     try {
       // Check if user is already in workspace
-      const existing = await this.getUserWorkspace(data.userId, data.workspaceId);
+      const existing = await this.getUserWorkspace(data.userId, data.workspace_id);
       if (existing) {
         throw new WorkspaceError('User already in workspace', ErrorCodes.USER_ALREADY_IN_WORKSPACE);
       }
@@ -51,8 +51,8 @@ export class UserWorkspaceService {
       const values = [
         id,
         data.userId,
-        data.workspaceId,
-        data.teamId,
+        data.workspace_id,
+        data.team_id,
         data.role,
         data.permissions,
         now,
@@ -73,7 +73,7 @@ export class UserWorkspaceService {
         row.joined_at
       );
 
-      this.logger.info(`User ${data.userId} added to workspace ${data.workspaceId}`);
+      this.logger.info(`User ${data.userId} added to workspace ${data.workspace_id}`);
 
       return userWorkspace;
     } catch (error) {
@@ -86,7 +86,7 @@ export class UserWorkspaceService {
   /**
    * Get user workspace relationship
    */
-  async getUserWorkspace(userId: string, workspaceId: string): Promise<UserWorkspace | null> {
+  async getUserWorkspace(userId: string, workspace_id: string): Promise<UserWorkspace | null> {
     try {
       const query = `
         SELECT id, user_id, workspace_id, team_id, role, permissions, joined_at, is_active
@@ -94,7 +94,7 @@ export class UserWorkspaceService {
         WHERE user_id = $1 AND workspace_id = $2 AND is_active = true
       `;
 
-      const result = await this.pool.query(query, [userId, workspaceId]);
+      const result = await this.pool.query(query, [userId, workspace_id]);
 
       if (result.rows.length === 0) {
         return null;
@@ -122,13 +122,13 @@ export class UserWorkspaceService {
    */
   async updateUserWorkspace(
     userId: string,
-    workspaceId: string,
+    workspace_id: string,
     updates: UpdateUserWorkspaceDto,
     updatedBy: string
   ): Promise<IUserWorkspace> {
     try {
       // Validate updater has permission
-      const updaterWorkspace = await this.getUserWorkspace(updatedBy, workspaceId);
+      const updaterWorkspace = await this.getUserWorkspace(updatedBy, workspace_id);
       if (!updaterWorkspace || (updaterWorkspace.role !== 'OWNER' && updaterWorkspace.role !== 'ADMIN')) {
         throw new WorkspaceError('Insufficient permissions', ErrorCodes.INSUFFICIENT_PERMISSIONS);
       }
@@ -139,7 +139,7 @@ export class UserWorkspaceService {
 
       Object.entries(updates).forEach(([key, value]) => {
         if (value !== undefined) {
-          const dbKey = key === 'teamId' ? 'team_id' : key;
+          const dbKey = key === 'team_id' ? 'team_id' : key;
           setClause.push(`${dbKey} = $${paramIndex}`);
           values.push(value);
           paramIndex++;
@@ -147,14 +147,14 @@ export class UserWorkspaceService {
       });
 
       if (setClause.length === 0) {
-        const existing = await this.getUserWorkspace(userId, workspaceId);
+        const existing = await this.getUserWorkspace(userId, workspace_id);
         if (!existing) {
           throw new WorkspaceError('User workspace relationship not found', ErrorCodes.USER_WORKSPACE_NOT_FOUND);
         }
         return existing;
       }
 
-      values.push(userId, workspaceId);
+      values.push(userId, workspace_id);
 
       const query = `
         UPDATE user_workspaces
@@ -181,7 +181,7 @@ export class UserWorkspaceService {
         row.joined_at
       );
 
-      this.logger.info(`User workspace updated: ${userId} in ${workspaceId} by ${updatedBy}`);
+      this.logger.info(`User workspace updated: ${userId} in ${workspace_id} by ${updatedBy}`);
 
       return userWorkspace;
     } catch (error) {
@@ -193,16 +193,16 @@ export class UserWorkspaceService {
   /**
    * Remove user from workspace
    */
-  async removeUserFromWorkspace(userId: string, workspaceId: string, removedBy: string): Promise<boolean> {
+  async removeUserFromWorkspace(userId: string, workspace_id: string, removedBy: string): Promise<boolean> {
     try {
       // Validate remover has permission
-      const removerWorkspace = await this.getUserWorkspace(removedBy, workspaceId);
+      const removerWorkspace = await this.getUserWorkspace(removedBy, workspace_id);
       if (!removerWorkspace || (removerWorkspace.role !== 'OWNER' && removerWorkspace.role !== 'ADMIN')) {
         throw new WorkspaceError('Insufficient permissions', ErrorCodes.INSUFFICIENT_PERMISSIONS);
       }
 
       // Don't allow removing the owner
-      const targetWorkspace = await this.getUserWorkspace(userId, workspaceId);
+      const targetWorkspace = await this.getUserWorkspace(userId, workspace_id);
       if (targetWorkspace?.role === 'OWNER') {
         throw new WorkspaceError('Cannot remove workspace owner', ErrorCodes.CANNOT_REMOVE_OWNER);
       }
@@ -213,10 +213,10 @@ export class UserWorkspaceService {
         WHERE user_id = $1 AND workspace_id = $2
       `;
 
-      const result = await this.pool.query(query, [userId, workspaceId]);
+      const result = await this.pool.query(query, [userId, workspace_id]);
 
       if ( result.rowCount !== null && result.rowCount > 0) {
-        this.logger.info(`User ${userId} removed from workspace ${workspaceId} by ${removedBy}`);
+        this.logger.info(`User ${userId} removed from workspace ${workspace_id} by ${removedBy}`);
       }
 
       return result.rowCount !== null && result.rowCount > 0;
@@ -229,7 +229,7 @@ export class UserWorkspaceService {
   /**
    * Get workspace owner
    */
-  async getWorkspaceOwner(workspaceId: string): Promise<IUserWorkspace> {
+  async getWorkspaceOwner(workspace_id: string): Promise<IUserWorkspace> {
     try {
       const query = `
         SELECT id, user_id, workspace_id, team_id, role, permissions, joined_at, is_active
@@ -237,7 +237,7 @@ export class UserWorkspaceService {
         WHERE workspace_id = $1 AND role = 'OWNER' AND is_active = true
       `;
 
-      const result = await this.pool.query(query, [workspaceId]);
+      const result = await this.pool.query(query, [workspace_id]);
 
       if (result.rows.length === 0) {
         throw new WorkspaceError('Workspace owner not found', ErrorCodes.WORKSPACE_OWNER_NOT_FOUND);
@@ -263,7 +263,7 @@ export class UserWorkspaceService {
   /**
    * Get workspace members with their roles
    */
-  async getWorkspaceMembers(workspaceId: string): Promise<IUserWorkspace[]> {
+  async getWorkspaceMembers(workspace_id: string): Promise<IUserWorkspace[]> {
     try {
       const query = `
         SELECT id, user_id, workspace_id, team_id, role, permissions, joined_at, is_active
@@ -272,7 +272,7 @@ export class UserWorkspaceService {
         ORDER BY joined_at ASC
       `;
 
-      const result = await this.pool.query(query, [workspaceId]);
+      const result = await this.pool.query(query, [workspace_id]);
 
       return result.rows.map(row => new UserWorkspace(
         row.id,
@@ -295,11 +295,11 @@ export class UserWorkspaceService {
    */
   async hasPermission(
     userId: string, 
-    workspaceId: string, 
+    workspace_id: string, 
     requiredPermission: PermissionLevel
   ): Promise<boolean> {
     try {
-      const userWorkspace = await this.getUserWorkspace(userId, workspaceId);
+      const userWorkspace = await this.getUserWorkspace(userId, workspace_id);
       return userWorkspace ? userWorkspace.hasPermission(requiredPermission) : false;
     } catch (error) {
       this.logger.error('Error checking permission:', error);
@@ -310,9 +310,9 @@ export class UserWorkspaceService {
   /**
    * Assign user to team within workspace
    */
-  async assignUserToTeam(userId: string, workspaceId: string, teamId: string, assignedBy: string): Promise<IUserWorkspace> {
+  async assignUserToTeam(userId: string, workspace_id: string, team_id: string, assignedBy: string): Promise<IUserWorkspace> {
     try {
-      return await this.updateUserWorkspace(userId, workspaceId, { teamId }, assignedBy);
+      return await this.updateUserWorkspace(userId, workspace_id, { team_id }, assignedBy);
     } catch (error) {
       this.logger.error('Error assigning user to team:', error);
       throw error;
@@ -322,9 +322,9 @@ export class UserWorkspaceService {
   /**
    * Remove user from team within workspace
    */
-  async removeUserFromTeam(userId: string, workspaceId: string, removedBy: string): Promise<IUserWorkspace> {
+  async removeUserFromTeam(userId: string, workspace_id: string, removedBy: string): Promise<IUserWorkspace> {
     try {
-      return await this.updateUserWorkspace(userId, workspaceId, { teamId: undefined }, removedBy);
+      return await this.updateUserWorkspace(userId, workspace_id, { team_id: undefined }, removedBy);
     } catch (error) {
       this.logger.error('Error removing user from team:', error);
       throw error;
