@@ -3,13 +3,13 @@ import { IUserWorkspace, PermissionLevel, WorkspaceRole } from "../../types/work
 export class UserWorkspace implements IUserWorkspace {
   constructor(
     public id: string,
-    public userId: string,
-    public workspaceId: string,
+    public user_id: string,
+    public workspace_id: string,
     public role: WorkspaceRole,
     public permissions: PermissionLevel,
-    public isActive: boolean = true,
-    public teamId?: string,
-    public joinedAt: Date = new Date()
+    public is_active: boolean = true,
+    public team_id?: string,
+    public joined_at: Date = new Date()
   ) {}
 
   public updateRole(role: WorkspaceRole): void {
@@ -20,12 +20,12 @@ export class UserWorkspace implements IUserWorkspace {
     this.permissions = permissions;
   }
 
-  public assignToTeam(teamId: string): void {
-    this.teamId = teamId;
+  public assignToTeam(team_id: string): void {
+    this.team_id = team_id;
   }
 
   public removeFromTeam(): void {
-    this.teamId = undefined;
+    this.team_id = undefined;
   }
 
   public hasPermission(requiredPermission: PermissionLevel): boolean {
