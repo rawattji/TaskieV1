@@ -55,6 +55,7 @@ export interface IUser {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+  password? : string;
 }
 
 export interface IUserWorkspace {
@@ -64,7 +65,7 @@ export interface IUserWorkspace {
   teamId?: string;
   role: WorkspaceRole;
   permissions: PermissionLevel;
-  joinedAt: Date;
+  joinedAt?: Date;
   isActive: boolean;
 }
 
